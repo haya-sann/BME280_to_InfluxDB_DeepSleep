@@ -10,6 +10,8 @@
 // Based on this library example: https://github.com/tobiasschuerg/InfluxDB-Client-for-Arduino/blob/master/examples/SecureBatchWrite/SecureBatchWrite.ino
 
 #include <Arduino.h>
+#include <WiFiManager.h> // https://github.com/tzapu/WiFiManager
+WiFiManager wm;
 #include <Wire.h>
 // #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
@@ -64,13 +66,17 @@ void setup() {
 
   // Setup wifi
   WiFi.mode(WIFI_STA);
-  wifiMulti.addAP(ssid, password);
-  Serial.print("Connecting to wifi");
-  while (wifiMulti.run() != WL_CONNECTED) {
-    Serial.print(".");
-    delay(500);
-  }
-  Serial.println();
+    wm.setConfigPortalBlocking(true); //If this is set to true, 
+    //the config portal will block until the user exits the portal
+    wm.setConfigPortalTimeout(120);
+    //automatically connect using saved credentials if they exist
+    //If connection fails it starts an access point with the specified name
+    if(wm.autoConnect("AutoConnectAP")){
+        Serial.println("connected...yeey :)");
+    }
+    else {
+        Serial.println("Configportal running");
+    }
   
   //Init BME280 sensor
   pinMode(D8, OUTPUT);     // Initialize D8 pin as an output。I2CのGNDにするため
@@ -138,6 +144,7 @@ void goodNightLED(){  //system will go to deepsleep
 void loop() {
 
   monitorAlive();
+  wm.process();
 
   // Get latest sensor readings
   temperature = bme.readTemperature();
@@ -166,11 +173,6 @@ void loop() {
 
   // Clear fields for next usage. Tags remain the same.
   sensorReadings.clearFields();
-
-  // If no Wifi signal, try to reconnect it
-  if (wifiMulti.run() != WL_CONNECTED) {
-    Serial.println("Wifi connection lost");
-  }
 
  goodNightLED();
   Serial.println("Going to deep Sleep in 60 seconds. Good night!");
