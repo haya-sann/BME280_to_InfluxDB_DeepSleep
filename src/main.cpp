@@ -10,6 +10,8 @@
 // Based on this library example: https://github.com/tobiasschuerg/InfluxDB-Client-for-Arduino/blob/master/examples/SecureBatchWrite/SecureBatchWrite.ino
 
 #include <Arduino.h>
+#include <WiFiManager.h> // https://github.com/tzapu/WiFiManager
+WiFiManager wm;
 #include <Wire.h>
 // #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
@@ -28,6 +30,7 @@
 #include <InfluxDbClient.h>
 #include <InfluxDbCloud.h>
 #include "params.h"
+
 
 // Set timezone string according to https://www.gnu.org/software/libc/manual/html_node/TZ-Variable.html
 // Examples:
@@ -57,20 +60,46 @@ float humidity;
 float pressure;
 float vcc_3v3;
 
+void monitorAlive(){  //just for monitoring live
+  digitalWrite(LED_BUILTIN, HIGH);   // Turn the LED on (Note that LOW is the voltage level
+                                    // but actually the LED is on; this is because 
+                                    // it is acive low on the ESP-01)
+  delay(200);                      // Wait for a 1 mili second
+  digitalWrite(LED_BUILTIN, LOW);  // Turn the LED off by making the voltage HIGH
+}
+
+  void enterDeepSleep(int deepsleepTime){
+    Serial.println("Going to sleep"); // Apparent power
+    for (int goingDownCount = 1; goingDownCount < 4; goingDownCount++)
+    {
+      digitalWrite(LED_BUILTIN, LOW);
+      delay(200);
+      digitalWrite(LED_BUILTIN, HIGH);
+      delay(200);
+    }
+      ESP.deepSleep(1* deepsleepTime * 1000 * 1000, WAKE_RF_DEFAULT); 
+  }
+
 void setup() {
-  pinMode(LED_BUILTIN, OUTPUT);  // initialize onboard LED as output
+  pinMode(LED_BUILTIN, OUTPUT);  // initialize onboard LED as output  
+  pinMode(D0, WAKEUP_PULLUP); // Connect D0 to RST to wake up, D0 is GPIO16
+  monitorAlive();
   Serial.begin(115200);
   Serial.println("This program is located at /Users/haya/Documents/PlatformIO/Projects/BME280_to_InfluxDB_DeepSleep/src"); 
 
   // Setup wifi
   WiFi.mode(WIFI_STA);
-  wifiMulti.addAP(ssid, password);
-  Serial.print("Connecting to wifi");
-  while (wifiMulti.run() != WL_CONNECTED) {
-    Serial.print(".");
-    delay(500);
-  }
-  Serial.println();
+    wm.setConfigPortalTimeout(120);
+    //automatically connect using saved credentials if they exist
+    //If connection fails it starts an access point with the specified name
+    wm.setConfigPortalBlocking(false); //If this is set to true, 
+    //the config portal will block until the user exits the portal
+    if(wm.autoConnect("AutoConnectAP")){
+        Serial.println("connected...yeey :)");
+    }
+    else {
+        Serial.println("Configportal running");
+    }
   
   //Init BME280 sensor
   pinMode(D8, OUTPUT);     // Initialize D8 pin as an output。I2CのGNDにするため
@@ -79,12 +108,20 @@ void setup() {
   Serial.println(F("BME280 test"));
   Wire.begin(SDA, SCL);
 
-  // default settings
-  // (you can also pass in a Wire library object like &Wire2)
-  if (!bme.begin(0x76)) {
+bool sensorInitialized = false;
+for (int i = 0; i < 5; i++) {
+    if (bme.begin(0x76)) {
+        sensorInitialized = true;
+        break;
+    }
     Serial.println("Could not find a valid BME280 sensor, check wiring!");
-    while (1);
-  }
+    delay(10000); // 10秒待機
+}
+
+if (!sensorInitialized) {
+    delay(1000); // Add a delay to prevent watchdog reset
+    enterDeepSleep(60); // Sleep for 1 minute
+}
   
   // Add tags
   sensorReadings.addTag("device", DEVICE);
@@ -106,38 +143,8 @@ void setup() {
   }
 }
 
-
-void monitorAlive(){  //just for monitoring live
-  digitalWrite(LED_BUILTIN, LOW);   // Turn the LED on (Note that LOW is the voltage level
-                                    // but actually the LED is on; this is because 
-                                    // it is acive low on the ESP-01)
-  delay(100);                      // Wait for a 1 mili second
-  digitalWrite(LED_BUILTIN, HIGH);  // Turn the LED off by making the voltage HIGH
-}
-
-void goodNightLED(){  //system will go to deepsleep
-      digitalWrite(LED_BUILTIN, LOW);   // Turn the LED on (Note that LOW is the voltage level
-                                    // but actually the LED is on; this is because 
-                                    // it is acive low on the ESP-01)
-      delay(1500);                      // Wait for a 1 mili second
-      digitalWrite(LED_BUILTIN, HIGH);  // Turn the LED off by making the voltage HIGH
-      delay(200);                      // Wait for a 1 mili second
-
-  int i = 0;
-  while (i<3) {
-      digitalWrite(LED_BUILTIN, LOW);   // Turn the LED on (Note that LOW is the voltage level
-                                    // but actually the LED is on; this is because 
-                                    // it is acive low on the ESP-01)
-      delay(100);                      // Wait for a 1 mili second
-      digitalWrite(LED_BUILTIN, HIGH);  // Turn the LED off by making the voltage HIGH
-      ++i;
-      delay(100);                      // Wait for a 1 mili second
-  }
-}
-
 void loop() {
-
-  monitorAlive();
+  wm.process();
 
   // Get latest sensor readings
   temperature = bme.readTemperature();
@@ -167,16 +174,12 @@ void loop() {
   // Clear fields for next usage. Tags remain the same.
   sensorReadings.clearFields();
 
-  // If no Wifi signal, try to reconnect it
-  if (wifiMulti.run() != WL_CONNECTED) {
-    Serial.println("Wifi connection lost");
-  }
-
- goodNightLED();
   Serial.println("Going to deep Sleep in 60 seconds. Good night!");
-
-  //Sleep 1 minute.
-  ESP.deepSleep(1* 60 * 1000 * 1000, WAKE_RF_DEFAULT);  
-  
+  WiFi.disconnect(true); //disconnect and remove wifi config. 
+  //This is to prevent the ESP8266 from connecting to the wifi after deep sleep.
+  //Sleep 1 minute. ESP.deepSleep(1* 60 * 1000 * 1000, WAKE_RF_DEFAULT);
+  Serial.println("Go to Grafana Dashboard: ");
+  Serial.println("https://hayabiz.grafana.net/public-dashboards/7af65240a12f4aed88a14f7589b73302");
+  enterDeepSleep(60);
   delay(30000);
 }
