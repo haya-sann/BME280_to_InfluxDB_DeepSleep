@@ -108,13 +108,20 @@ void setup() {
   Serial.println(F("BME280 test"));
   Wire.begin(SDA, SCL);
 
-  // default settings
-  // (you can also pass in a Wire library object like &Wire2)
-  if (!bme.begin(0x76)) {
+bool sensorInitialized = false;
+for (int i = 0; i < 5; i++) {
+    if (bme.begin(0x76)) {
+        sensorInitialized = true;
+        break;
+    }
     Serial.println("Could not find a valid BME280 sensor, check wiring!");
+    delay(10000); // 10秒待機
+}
+
+if (!sensorInitialized) {
     delay(1000); // Add a delay to prevent watchdog reset
-    enterDeepSleep(60); //sleep 1 minute
-  }
+    enterDeepSleep(60); // Sleep for 1 minute
+}
   
   // Add tags
   sensorReadings.addTag("device", DEVICE);
@@ -171,6 +178,8 @@ void loop() {
   WiFi.disconnect(true); //disconnect and remove wifi config. 
   //This is to prevent the ESP8266 from connecting to the wifi after deep sleep.
   //Sleep 1 minute. ESP.deepSleep(1* 60 * 1000 * 1000, WAKE_RF_DEFAULT);
+  Serial.println("Go to Grafana Dashboard: ");
+  Serial.println("https://hayabiz.grafana.net/public-dashboards/7af65240a12f4aed88a14f7589b73302");
   enterDeepSleep(60);
   delay(30000);
 }
