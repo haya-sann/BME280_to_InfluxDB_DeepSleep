@@ -60,19 +60,19 @@ float pressure;
 float vcc_3v3;
 
 void monitorAlive(){  //just for monitoring live
-  digitalWrite(LED_BUILTIN, LOW);   // Turn the LED on (Note that LOW is the voltage level
+  digitalWrite(LED_BUILTIN, HIGH);   // Turn the LED on (Note that LOW is the voltage level
                                     // but actually the LED is on; this is because 
                                     // it is acive low on the ESP-01)
-  delay(100);                      // Wait for a 1 mili second
-  digitalWrite(LED_BUILTIN, HIGH);  // Turn the LED off by making the voltage HIGH
+  delay(200);                      // Wait for a 1 mili second
+  digitalWrite(LED_BUILTIN, LOW);  // Turn the LED off by making the voltage HIGH
 }
 
 void goodNightLED(){  //system will go to deepsleep
-      digitalWrite(LED_BUILTIN, LOW);   // Turn the LED on (Note that LOW is the voltage level
+      digitalWrite(LED_BUILTIN, HIGH);   // Turn the LED on (Note that LOW is the voltage level
                                     // but actually the LED is on; this is because 
                                     // it is acive low on the ESP-01)
-      delay(1500);                      // Wait for a 1 mili second
-      digitalWrite(LED_BUILTIN, HIGH);  // Turn the LED off by making the voltage HIGH
+      delay(200);                      // Wait for a 1 mili second
+      digitalWrite(LED_BUILTIN, LOW);  // Turn the LED off by making the voltage HIGH
       delay(200);                      // Wait for a 1 mili second
 
   int i = 0;
@@ -90,6 +90,7 @@ void goodNightLED(){  //system will go to deepsleep
 
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);  // initialize onboard LED as output  
+  pinMode(D0, WAKEUP_PULLUP); // Connect D0 to RST to wake up, D0 is GPIO16
   monitorAlive();
   Serial.begin(115200);
   Serial.println("This program is located at /Users/haya/Documents/PlatformIO/Projects/BME280_to_InfluxDB_DeepSleep/src"); 
@@ -99,7 +100,7 @@ void setup() {
     wm.setConfigPortalTimeout(120);
     //automatically connect using saved credentials if they exist
     //If connection fails it starts an access point with the specified name
-    wm.setConfigPortalBlocking(true); //If this is set to true, 
+    wm.setConfigPortalBlocking(false); //If this is set to true, 
     //the config portal will block until the user exits the portal
     if(wm.autoConnect("AutoConnectAP")){
         Serial.println("connected...yeey :)");
@@ -119,7 +120,8 @@ void setup() {
   // (you can also pass in a Wire library object like &Wire2)
   if (!bme.begin(0x76)) {
     Serial.println("Could not find a valid BME280 sensor, check wiring!");
-    while (1);
+    delay(1000); // Add a delay to prevent watchdog reset
+    ESP.restart(); // Optionally restart the ESP instead of hanging
   }
   
   // Add tags
@@ -177,8 +179,8 @@ void loop() {
   Serial.println("Going to deep Sleep in 60 seconds. Good night!");
   WiFi.disconnect(true); //disconnect and remove wifi config. 
   //This is to prevent the ESP8266 from connecting to the wifi after deep sleep.
-  //Sleep 1 minute.
-  ESP.deepSleep(1* 60 * 1000 * 1000, WAKE_RF_DEFAULT);  
+  //Sleep 1 minute. ESP.deepSleep(1* 60 * 1000 * 1000, WAKE_RF_DEFAULT);
+  ESP.deepSleep(1* 60 * 1000 * 1000, WAKE_RF_DEFAULT); 
   
   delay(30000);
 }
