@@ -31,6 +31,7 @@ WiFiManager wm;
 #include <InfluxDbCloud.h>
 #include "params.h"
 
+
 // Set timezone string according to https://www.gnu.org/software/libc/manual/html_node/TZ-Variable.html
 // Examples:
 //  Pacific Time:   "PST8PDT"
@@ -67,26 +68,17 @@ void monitorAlive(){  //just for monitoring live
   digitalWrite(LED_BUILTIN, LOW);  // Turn the LED off by making the voltage HIGH
 }
 
-void goodNightLED(){  //system will go to deepsleep
-      digitalWrite(LED_BUILTIN, HIGH);   // Turn the LED on (Note that LOW is the voltage level
-                                    // but actually the LED is on; this is because 
-                                    // it is acive low on the ESP-01)
-      delay(200);                      // Wait for a 1 mili second
-      digitalWrite(LED_BUILTIN, LOW);  // Turn the LED off by making the voltage HIGH
-      delay(200);                      // Wait for a 1 mili second
-
-  int i = 0;
-  while (i<3) {
-      digitalWrite(LED_BUILTIN, LOW);   // Turn the LED on (Note that LOW is the voltage level
-                                    // but actually the LED is on; this is because 
-                                    // it is acive low on the ESP-01)
-      delay(100);                      // Wait for a 1 mili second
-      digitalWrite(LED_BUILTIN, HIGH);  // Turn the LED off by making the voltage HIGH
-      ++i;
-      delay(100);                      // Wait for a 1 mili second
+  void enterDeepSleep(int deepsleepTime){
+    Serial.println("Going to sleep"); // Apparent power
+    for (int goingDownCount = 1; goingDownCount < 4; goingDownCount++)
+    {
+      digitalWrite(LED_BUILTIN, LOW);
+      delay(200);
+      digitalWrite(LED_BUILTIN, HIGH);
+      delay(200);
+    }
+      ESP.deepSleep(1* deepsleepTime * 1000 * 1000, WAKE_RF_DEFAULT); 
   }
-}
-
 
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);  // initialize onboard LED as output  
@@ -121,7 +113,7 @@ void setup() {
   if (!bme.begin(0x76)) {
     Serial.println("Could not find a valid BME280 sensor, check wiring!");
     delay(1000); // Add a delay to prevent watchdog reset
-    ESP.restart(); // Optionally restart the ESP instead of hanging
+    enterDeepSleep(60); //sleep 1 minute
   }
   
   // Add tags
@@ -175,12 +167,10 @@ void loop() {
   // Clear fields for next usage. Tags remain the same.
   sensorReadings.clearFields();
 
-  goodNightLED();
   Serial.println("Going to deep Sleep in 60 seconds. Good night!");
   WiFi.disconnect(true); //disconnect and remove wifi config. 
   //This is to prevent the ESP8266 from connecting to the wifi after deep sleep.
   //Sleep 1 minute. ESP.deepSleep(1* 60 * 1000 * 1000, WAKE_RF_DEFAULT);
-  ESP.deepSleep(1* 60 * 1000 * 1000, WAKE_RF_DEFAULT); 
-  
+  enterDeepSleep(60);
   delay(30000);
 }
